@@ -10,15 +10,19 @@ BATCH_SIZE = 32
 EPOCHS = 100
 LEARNING_RATE = 1e-3
 TEST_SIZE = 0.2
-TOLERANCE = 0.10
+TOP_K = 5
 
-TARGET_COLUMN = "streams"
-DROP_COLUMNS = ["track_name", "artist(s)_name", "key", "mode"]
+TARGET_COLUMN = "track_genre"
+# Identifier / string columns that can't feed a numeric network.
+# `artists` is excluded on purpose: artist identity is so tightly coupled to
+# genre that including it would let the model memorize artist -> genre instead
+# of learning audio-feature -> genre.
+DROP_COLUMNS = ["track_id", "artists", "album_name", "track_name"]
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PLOTS_DIR = PROJECT_ROOT / "plots"
-LOCAL_CSV = PROJECT_ROOT / "spotify-2023.csv"
-KAGGLE_DATASET = "nelgiriyewithana/top-spotify-songs-2023"
+LOCAL_CSV = PROJECT_ROOT / "dataset.csv"
+KAGGLE_DATASET = "maharshipandya/-spotify-tracks-dataset"
 
 
 def set_seeds() -> None:

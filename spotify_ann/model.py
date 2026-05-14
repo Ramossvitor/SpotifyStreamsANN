@@ -1,10 +1,10 @@
-"""Feed-forward network used to predict raw stream counts."""
+"""Feed-forward network used to classify track genres."""
 
 import torch.nn as nn
 
 
-class StreamsANN(nn.Module):
-    def __init__(self, input_dim: int):
+class GenreANN(nn.Module):
+    def __init__(self, input_dim: int, num_classes: int):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, 64),
@@ -13,8 +13,8 @@ class StreamsANN(nn.Module):
             nn.ReLU(),
             nn.Linear(32, 16),
             nn.ReLU(),
-            nn.Linear(16, 1),
+            nn.Linear(16, num_classes),
         )
 
     def forward(self, x):
-        return self.net(x).squeeze(-1)
+        return self.net(x)

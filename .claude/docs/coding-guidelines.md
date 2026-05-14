@@ -1,4 +1,4 @@
-# Coding principles for SpotifyStreamsANN
+# Coding principles for SpotifyGenreANN
 
 ## Follow Existing Patterns
 Match the codebase's architecture, naming, and style. Prefer framework and standard-library solutions over custom code or new dependencies. When introducing a different approach, ensure it's a clear improvement and document the rationale. Apply new patterns consistently — don't leave the codebase in a mixed state.
