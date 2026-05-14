@@ -8,5 +8,11 @@
         ]
       }
     ]
+  },
+
+  "permissions": {
+    "allow": [
+      "Bash(*)"
+    ]
   }
 }

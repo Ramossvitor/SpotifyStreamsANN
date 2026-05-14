@@ -1,19 +1,32 @@
-"""Test-set evaluation: forward pass + raw and readable metrics."""
+"""Test-set evaluation: forward pass + classification metrics."""
 
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.metrics import (
+    accuracy_score,
+    classification_report,
+    f1_score,
+    top_k_accuracy_score,
+)
+
+from . import config
 
 
-def compute_percentage_metrics(
-    y_true: np.ndarray, predictions: np.ndarray, tolerance: float
-) -> tuple[float, float]:
-    """Return (MAPE %, accuracy % within ±tolerance), masking zero targets."""
-    mask = y_true != 0
-    rel_err = np.abs((y_true[mask] - predictions[mask]) / y_true[mask])
-    within_tol = rel_err <= tolerance
-    return float(rel_err.mean() * 100), float(within_tol.mean() * 100)
+def compute_classification_metrics(
+    y_true: np.ndarray, logits: np.ndarray
+) -> tuple[float, float, np.ndarray]:
+    """Return (top-1 accuracy %, top-k accuracy %, argmax predictions)."""
+    predictions = logits.argmax(axis=1)
+    top1 = accuracy_score(y_true, predictions) * 100
+    num_classes = logits.shape[1]
+    topk = (
+        top_k_accuracy_score(
+            y_true, logits, k=config.TOP_K, labels=np.arange(num_classes)
+        )
+        * 100
+    )
+    return float(top1), float(topk), predictions
 
 
 def evaluate_model(
@@ -21,41 +34,36 @@ def evaluate_model(
     X_test_t: torch.Tensor,
     y_test: np.ndarray,
     device: str,
-    tolerance: float,
+    class_names: np.ndarray,
 ) -> tuple[np.ndarray, dict]:
     model.eval()
     with torch.no_grad():
-        predictions = model(X_test_t.to(device)).cpu().numpy()
+        logits = model(X_test_t.to(device)).cpu().numpy()
 
-    mse = mean_squared_error(y_test, predictions)
-    mae = mean_absolute_error(y_test, predictions)
-    r2 = r2_score(y_test, predictions)
-    rmse = float(np.sqrt(mse))
-
-    mape, accuracy_pct = compute_percentage_metrics(y_test, predictions, tolerance)
+    top1, topk, predictions = compute_classification_metrics(y_test, logits)
+    macro_f1 = f1_score(y_test, predictions, average="macro", zero_division=0)
+    report = classification_report(
+        y_test,
+        predictions,
+        labels=np.arange(len(class_names)),
+        target_names=class_names,
+        zero_division=0,
+        digits=3,
+    )
 
     metrics = {
-        "mse": mse,
-        "rmse": rmse,
-        "mae": mae,
-        "r2": r2,
-        "mape": mape,
-        "accuracy_pct": accuracy_pct,
+        "top1": top1,
+        "topk": topk,
+        "macro_f1": float(macro_f1),
+        "report": report,
     }
     return predictions, metrics
 
 
-def print_metrics(metrics: dict, tolerance: float, n_test: int) -> None:
-    print("=== Raw-scale metrics ===")
-    print(f"MSE : {metrics['mse']:.3e}")
-    print(f"RMSE: {metrics['rmse']:.3e}  (avg error in streams)")
-    print(f"MAE : {metrics['mae']:.3e}")
-    print(f"R^2 : {metrics['r2']:.4f}")
-
-    print("\n=== Readable metrics ===")
-    print(f"MAPE                  : {metrics['mape']:.1f}%   (avg % error per track)")
-    count = int(round(metrics["accuracy_pct"] * n_test / 100))
-    print(
-        f"Accuracy (within ±{tolerance*100:.0f}%) : {metrics['accuracy_pct']:.1f}%   "
-        f"({count}/{n_test} tracks)"
-    )
+def print_metrics(metrics: dict, n_test: int) -> None:
+    print("=== Classification metrics ===")
+    print(f"Top-1 accuracy : {metrics['top1']:.2f}%   ({n_test} test tracks)")
+    print(f"Top-{config.TOP_K} accuracy : {metrics['topk']:.2f}%")
+    print(f"Macro F1       : {metrics['macro_f1']:.4f}")
+    print("\n=== Per-class report ===")
+    print(metrics["report"])

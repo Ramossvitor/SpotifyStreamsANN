@@ -1,4 +1,4 @@
-"""Training loop for the streams ANN."""
+"""Training loop for the genre-classification ANN."""
 
 import numpy as np
 import torch
@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from .evaluation import compute_percentage_metrics
+from .evaluation import compute_classification_metrics
 
 
 def _run_epoch(
@@ -20,23 +20,23 @@ def _run_epoch(
     model.train(is_training)
     total_loss = 0.0
     n = 0
-    preds_chunks: list[np.ndarray] = []
+    logits_chunks: list[np.ndarray] = []
     targets_chunks: list[np.ndarray] = []
     with torch.set_grad_enabled(is_training):
         for features, targets in loader:
             features, targets = features.to(device), targets.to(device)
             if is_training:
                 optimizer.zero_grad()
-            pred = model(features)
-            loss = criterion(pred, targets)
+            logits = model(features)
+            loss = criterion(logits, targets)
             if is_training:
                 loss.backward()
                 optimizer.step()
             total_loss += loss.item() * features.size(0)
             n += features.size(0)
-            preds_chunks.append(pred.detach().cpu().numpy())
+            logits_chunks.append(logits.detach().cpu().numpy())
             targets_chunks.append(targets.detach().cpu().numpy())
-    return total_loss / n, np.concatenate(preds_chunks), np.concatenate(targets_chunks)
+    return total_loss / n, np.concatenate(logits_chunks), np.concatenate(targets_chunks)
 
 
 def train_model(
@@ -46,46 +46,43 @@ def train_model(
     device: str,
     epochs: int,
     learning_rate: float,
-    tolerance: float,
 ) -> dict[str, list[float]]:
-    criterion = nn.MSELoss()
+    criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
     history: dict[str, list[float]] = {
-        "train_mse": [],
-        "test_mse": [],
-        "train_mape": [],
-        "test_mape": [],
-        "train_accuracy": [],
-        "test_accuracy": [],
+        "train_loss": [],
+        "test_loss": [],
+        "train_top1": [],
+        "test_top1": [],
+        "train_top5": [],
+        "test_top5": [],
     }
 
     for epoch in range(1, epochs + 1):
-        train_mse, train_preds, train_targets = _run_epoch(
+        train_loss, train_logits, train_targets = _run_epoch(
             model, train_loader, device, criterion, optimizer
         )
-        test_mse, test_preds, test_targets = _run_epoch(
+        test_loss, test_logits, test_targets = _run_epoch(
             model, test_loader, device, criterion
         )
 
-        train_mape, train_acc = compute_percentage_metrics(
-            train_targets, train_preds, tolerance
-        )
-        test_mape, test_acc = compute_percentage_metrics(
-            test_targets, test_preds, tolerance
-        )
+        train_top1, train_top5, _ = compute_classification_metrics(train_targets, train_logits)
+        test_top1, test_top5, _ = compute_classification_metrics(test_targets, test_logits)
 
-        history["train_mse"].append(train_mse)
-        history["test_mse"].append(test_mse)
-        history["train_mape"].append(train_mape)
-        history["test_mape"].append(test_mape)
-        history["train_accuracy"].append(train_acc)
-        history["test_accuracy"].append(test_acc)
+        history["train_loss"].append(train_loss)
+        history["test_loss"].append(test_loss)
+        history["train_top1"].append(train_top1)
+        history["test_top1"].append(test_top1)
+        history["train_top5"].append(train_top5)
+        history["test_top5"].append(test_top5)
 
         if epoch % 10 == 0 or epoch == 1:
             print(
-                f"Epoch {epoch:3d} | train MSE: {train_mse:.3e} "
-                f"| test MSE: {test_mse:.3e}"
+                f"Epoch {epoch:3d} | train loss: {train_loss:.4f} "
+                f"| test loss: {test_loss:.4f} "
+                f"| test top-1: {test_top1:.2f}% "
+                f"| test top-5: {test_top5:.2f}%"
             )
 
     return history
