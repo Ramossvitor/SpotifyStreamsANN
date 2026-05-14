@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 SEED = 42
-BATCH_SIZE = 32
+BATCH_SIZE = 64
 EPOCHS = 100
 LEARNING_RATE = 1e-3
 TEST_SIZE = 0.2
