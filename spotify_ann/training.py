@@ -1,12 +1,11 @@
 """Training loop for the genre-classification ANN."""
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from .evaluation import compute_classification_metrics
+from . import config
 
 
 def _run_epoch(
@@ -15,13 +14,17 @@ def _run_epoch(
     device: str,
     criterion: nn.Module,
     optimizer: optim.Optimizer | None = None,
-) -> tuple[float, np.ndarray, np.ndarray]:
+) -> tuple[float, float, float]:
     is_training = optimizer is not None
     model.train(is_training)
     total_loss = 0.0
-    n = 0
-    logits_chunks: list[np.ndarray] = []
-    targets_chunks: list[np.ndarray] = []
+    total_samples = 0
+    correct_top1 = 0
+    correct_top5 = 0
+    # Per-epoch top-1/top-5 are counted inline on-device for speed; the final
+    # end-of-run report uses evaluation.compute_classification_metrics (sklearn)
+    # so per-class F1 / classification_report are available. Both paths must
+    # agree numerically on top-1 and top-5.
     with torch.set_grad_enabled(is_training):
         for features, targets in loader:
             features, targets = features.to(device), targets.to(device)
@@ -32,11 +35,17 @@ def _run_epoch(
             if is_training:
                 loss.backward()
                 optimizer.step()
-            total_loss += loss.item() * features.size(0)
-            n += features.size(0)
-            logits_chunks.append(logits.detach().cpu().numpy())
-            targets_chunks.append(targets.detach().cpu().numpy())
-    return total_loss / n, np.concatenate(logits_chunks), np.concatenate(targets_chunks)
+            batch_size = features.size(0)
+            total_loss += loss.item() * batch_size
+            total_samples += batch_size
+            _, top5_preds = logits.topk(config.TOP_K, dim=1)
+            target_in_top5 = (top5_preds == targets.unsqueeze(1)).any(dim=1)
+            correct_top1 += (logits.argmax(dim=1) == targets).sum().item()
+            correct_top5 += target_in_top5.sum().item()
+    avg_loss = total_loss / total_samples
+    top1_pct = 100.0 * correct_top1 / total_samples
+    top5_pct = 100.0 * correct_top5 / total_samples
+    return avg_loss, top1_pct, top5_pct
 
 
 def train_model(
@@ -60,15 +69,12 @@ def train_model(
     }
 
     for epoch in range(1, epochs + 1):
-        train_loss, train_logits, train_targets = _run_epoch(
+        train_loss, train_top1, train_top5 = _run_epoch(
             model, train_loader, device, criterion, optimizer
         )
-        test_loss, test_logits, test_targets = _run_epoch(
+        test_loss, test_top1, test_top5 = _run_epoch(
             model, test_loader, device, criterion
         )
-
-        train_top1, train_top5, _ = compute_classification_metrics(train_targets, train_logits)
-        test_top1, test_top5, _ = compute_classification_metrics(test_targets, test_logits)
 
         history["train_loss"].append(train_loss)
         history["test_loss"].append(test_loss)
