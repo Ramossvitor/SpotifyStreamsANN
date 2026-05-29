@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
 from torch.utils.data import DataLoader, TensorDataset
 
 from . import config
@@ -55,22 +55,35 @@ def preprocess(
     label_encoder = LabelEncoder()
     y = label_encoder.fit_transform(tracks.loc[mask, config.TARGET_COLUMN]).astype(np.int64)
 
-    X = features_df.values.astype(np.float32)
-    print("Number of features:", X.shape[1])
-    print("Features:", features_df.columns.tolist())
+    categorical_cols = config.CATEGORICAL_COLUMNS
+    continuous_cols = [c for c in features_df.columns if c not in categorical_cols]
     print("Number of classes:", len(label_encoder.classes_))
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
+    train_df, test_df, y_train, y_test = train_test_split(
+        features_df,
         y,
         test_size=config.TEST_SIZE,
         random_state=config.SEED,
         stratify=y,
     )
 
+    # Fit the encoder and scaler on the training split only, then apply to both,
+    # so no test-set statistics leak into preprocessing. One-hot encoding keeps
+    # the categorical columns at 0/1; only the continuous columns are scaled.
+    encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False, dtype=np.float32)
     scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train).astype(np.float32)
-    X_test = scaler.transform(X_test).astype(np.float32)
+
+    train_categorical = encoder.fit_transform(train_df[categorical_cols])
+    test_categorical = encoder.transform(test_df[categorical_cols])
+    train_continuous = scaler.fit_transform(train_df[continuous_cols]).astype(np.float32)
+    test_continuous = scaler.transform(test_df[continuous_cols]).astype(np.float32)
+
+    X_train = np.hstack([train_continuous, train_categorical])
+    X_test = np.hstack([test_continuous, test_categorical])
+
+    print("Number of features:", X_train.shape[1])
+    print(f"  continuous ({len(continuous_cols)}): {continuous_cols}")
+    print(f"  one-hot    ({train_categorical.shape[1]}): from {categorical_cols}")
     print("X_train:", X_train.shape, "X_test:", X_test.shape)
 
     return X_train, X_test, y_train, y_test, label_encoder
