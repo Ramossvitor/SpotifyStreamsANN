@@ -6,12 +6,14 @@ import numpy as np
 import torch
 
 SEED = 42
-BATCH_SIZE = 128
+BATCH_SIZE = 256
 EPOCHS = 100
+# Held fixed despite the larger batch so the architecture is the only moving
+# variable; Adam's per-parameter scaling makes it largely batch-insensitive.
 LEARNING_RATE = 1e-3
 TEST_SIZE = 0.2
 TOP_K = 5
-HIDDEN_DIMS = [256, 256, 128]
+HIDDEN_DIMS = [512, 512, 256, 128]
 
 TARGET_COLUMN = "track_genre"
 # Identifier / string columns that can't feed a numeric network.
