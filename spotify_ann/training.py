@@ -55,9 +55,12 @@ def train_model(
     device: str,
     epochs: int,
     learning_rate: float,
+    weight_decay: float,
 ) -> dict[str, list[float]]:
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = optim.AdamW(
+        model.parameters(), lr=learning_rate, weight_decay=weight_decay
+    )
 
     history: dict[str, list[float]] = {
         "train_loss": [],

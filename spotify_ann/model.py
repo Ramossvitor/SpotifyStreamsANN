@@ -13,6 +13,7 @@ class GenreANN(nn.Module):
         for hidden_dim in config.HIDDEN_DIMS:
             layers.append(nn.Linear(in_features, hidden_dim))
             layers.append(nn.ReLU())
+            layers.append(nn.Dropout(config.DROPOUT_RATE))
             in_features = hidden_dim
         layers.append(nn.Linear(in_features, num_classes))
         self.net = nn.Sequential(*layers)

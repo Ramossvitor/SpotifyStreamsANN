@@ -9,11 +9,21 @@ SEED = 42
 BATCH_SIZE = 256
 EPOCHS = 100
 # Held fixed despite the larger batch so the architecture is the only moving
-# variable; Adam's per-parameter scaling makes it largely batch-insensitive.
+# variable; AdamW's per-parameter scaling makes it largely batch-insensitive.
 LEARNING_RATE = 1e-3
+# Decoupled weight decay (AdamW): every optimizer step also shrinks each weight
+# toward zero, penalizing large weights so the model prefers simpler functions
+# that generalize better. 1e-2 is AdamW's default; lower it toward 1e-3 if the
+# model underfits (train accuracy drops too), raise it toward 5e-2 if test loss
+# still diverges.
+WEIGHT_DECAY = 1e-2
 TEST_SIZE = 0.2
 TOP_K = 5
 HIDDEN_DIMS = [512, 512, 256, 128]
+# Fraction of activations randomly zeroed after each hidden layer during
+# training (disabled at eval). Forces redundant representations instead of
+# memorized co-adaptations.
+DROPOUT_RATE = 0.3
 
 TARGET_COLUMN = "track_genre"
 # Identifier / string columns that can't feed a numeric network.
