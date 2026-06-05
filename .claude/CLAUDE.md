@@ -2,12 +2,12 @@
 
 # SpotifyGenreANN
 
-Study project: classify a Spotify track's `track_genre` (114 genres) from numeric audio features using a basic feed-forward ANN. Built with Python, PyTorch, pandas, numpy, scikit-learn, matplotlib, and kagglehub.
+Classifies a Spotify track's `track_genre` (114 genres) from numeric audio features using a feed-forward ANN, aiming for a model that generalizes well to unseen tracks. Built with Python, PyTorch, pandas, numpy, scikit-learn, matplotlib, and kagglehub.
 
 ## Conventions
 
 - Pipeline logic lives in the `spotify_ann/` package (one module per concern: `config`, `data`, `model`, `training`, `evaluation`, `plotting`). `spotify_genre_ann.py` is a thin entry point that wires the modules together — keep it short.
-- **Pedagogical constraints are intentional, not bugs.** The model deliberately uses only `nn.Linear` + ReLU (no RNN/CNN), and omits dropout, weight decay, batch norm, and early stopping so overfitting is observable. The target `track_genre` is label-encoded; `CrossEntropyLoss` expects raw integer class indices (not one-hot). Do not "fix" these without explicit user direction.
+- The model is a feed-forward stack of `nn.Linear` + ReLU (no RNN/CNN). It regularizes with AdamW's decoupled weight decay plus dropout after each hidden layer to curb overfitting; further regularizers (early stopping, batch norm) are fair game now that the goal is maximizing test-set generalization rather than observing overfitting. The target `track_genre` is label-encoded; `CrossEntropyLoss` expects raw integer class indices (not one-hot) — keep that contract.
 - `artists` is deliberately dropped from the input features (see `config.DROP_COLUMNS`): artist identity is so tightly coupled to genre that including it would let the model memorize artist→genre instead of learning audio-feature→genre. Don't add it back without discussion.
 - Reproducibility: `torch.manual_seed(42)` and `np.random.seed(42)` are applied via `config.set_seeds()`. Hyperparameters and the seed live in `spotify_ann/config.py` — change them there, not inline.
 - Device handling: `config.get_device()` returns `"cuda" if torch.cuda.is_available() else "cpu"` — keep the auto-detection pattern.
@@ -22,7 +22,7 @@ python spotify_genre_ann.py      # Run the full pipeline (training + plots)
 pip install black isort          # Formatters used by the auto-format hook (already installed)
 ```
 
-No build, test, or lint scripts — this is a study project.
+No build, test, or lint scripts in the repo.
 
 ## Project Structure
 
@@ -30,8 +30,8 @@ No build, test, or lint scripts — this is a study project.
 - `spotify_ann/` — package containing the pipeline:
   - `config.py` — seeds, device, paths, hyperparameters.
   - `data.py` — dataset loading, label encoding, preprocessing, DataLoader construction.
-  - `model.py` — `GenreANN` (Linear + ReLU stack with a `num_classes` output head).
-  - `training.py` — training loop (CrossEntropy + Adam, tracks top-1/top-5 per epoch).
+  - `model.py` — `GenreANN` (Linear + ReLU + dropout stack with a `num_classes` output head).
+  - `training.py` — training loop (CrossEntropy + AdamW, tracks top-1/top-5 per epoch).
   - `evaluation.py` — test-set metrics (top-1, top-5, macro F1, per-class report).
   - `plotting.py` — loss / accuracy / top-5 curves and confusion-matrix heatmap, written to disk.
 - `requirements.txt` — runtime dependencies.

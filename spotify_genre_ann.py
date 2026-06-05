@@ -1,15 +1,16 @@
-"""Classifying Spotify track genres with a basic ANN.
+"""Classifying Spotify track genres with a feed-forward ANN.
 
 Dataset: Spotify Tracks Dataset
     https://www.kaggle.com/datasets/maharshipandya/-spotify-tracks-dataset
 
-Goal: minimal fully-connected feed-forward network in PyTorch that predicts
-the `track_genre` column (114 genres) from numeric audio features.
+Goal: a fully-connected feed-forward network in PyTorch that predicts the
+`track_genre` column (114 genres) from numeric audio features and generalizes
+to unseen tracks.
 
-Constraints (on purpose, for learning):
-- No RNN / CNN — only nn.Linear + ReLU.
-- No anti-overfitting tricks: no dropout, no weight decay, no batch norm,
-  no early stopping. We *want* to see the model overfit.
+Design notes:
+- Architecture is nn.Linear + ReLU (no RNN / CNN).
+- The optimizer is AdamW, whose decoupled weight decay regularizes the model
+  to curb overfitting and improve test-set generalization.
 - 114-way classification with no class weighting. The dataset is perfectly
   balanced (1000 tracks per genre), so plain CrossEntropyLoss is enough.
 
@@ -48,6 +49,7 @@ def main() -> None:
         device,
         epochs=config.EPOCHS,
         learning_rate=config.LEARNING_RATE,
+        weight_decay=config.WEIGHT_DECAY,
     )
 
     predictions, metrics = evaluation.evaluate_model(
